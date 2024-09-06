@@ -20,6 +20,6 @@ async def classify_simple_and_hard_word():
 async def train():
     try:
         result = service.train()
-        return JSONResponse(status_code=200, content={"message": "Training is done!"})
+        return JSONResponse(status_code=200, content={"message": "Training is done!", "data": result})
     except Exception as e:
         return JSONResponse(status_code=500, content={"message": f"Something went wrong!, error: {str(e)}"})

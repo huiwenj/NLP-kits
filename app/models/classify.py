@@ -100,7 +100,7 @@ def run(train_data, val_data, hidden_size, n_epochs, learning_rate, loss_func, p
     val_losses = []
 
     for epoch in range(0, n_epochs):
-        output, loss, line, category = trainOneEpoch(model,
+        output, loss, line, category = train_one_epoch(model,
                     criterion = loss_func,
                     optimizer=torch.optim.SGD(model.parameters(), lr=learning_rate),
                     X=X,
