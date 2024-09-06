@@ -1,6 +1,8 @@
 from fastapi import FastAPI, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.router.classify_router import classify_router
+
 app = FastAPI()
 
 app.add_middleware(
@@ -13,5 +15,5 @@ app.add_middleware(
 
 router = APIRouter()
 
-app.include_router(router, prefix = "api")
+app.include_router(classify_router, prefix = "/api/v1/classify")
 
