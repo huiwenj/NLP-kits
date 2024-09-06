@@ -122,6 +122,52 @@ def letter_to_index(letter):
     return all_letters.find(letter)
 
 
+def predict(model, X, y = None, loss_func = None):
+    '''
+    Make predictions on the input data X using the given model.
+    Optionally calculate the average loss using true labels y and loss function loss_func.
+
+    Inputs:
+        model: trained model
+        X: a list of words
+        y: a list of categories (optional)
+        loss_func: a loss function (optional)
+    Returns:
+        predictions: as a NumPy array if y and loss_func are None, else the average loss.
+    '''
+    with torch.no_grad():
+        # Set the model to evaluation mode
+        model.eval()
+        # Initialize lists to store predictions and individual losses
+        pred = []
+        val_loss = []
+        # Loop over each sample in the input data X
+        for ind in range(X.shape[0]):
+            # Initialize hidden state
+            hidden = model.initHidden().to(device)
+            # Convert the current input sample to a tensor
+            val = line_to_tensor(X[ind])
+            # Loop over each element in the input tensor and get the model's output
+            for i in range(val.size()[0]):
+                output, hidden = model(val[i], hidden)
+            # Move the output tensor back to CPU and extract data (log probabilities)
+            log_probabilities = output.cpu().data
+            # Calculate the prediction by comparing the log probabilities
+            log_prob0, log_prob1 = log_probabilities[0]
+            pred.append(int(log_prob0 < log_prob1))
+            # If true labels and a loss function are provided, calculate the loss for the current sample
+            if y is not None and loss_func is not None:
+                category_tensor = torch.tensor([int(y[ind])]).to(device)
+                val_loss.append(loss_func(output, category_tensor).data.item())
+
+    # If true labels and a loss function were provided, return the average loss
+    if y is not None and loss_func is not None:
+        return sum(val_loss) / len(val_loss)
+
+    # Otherwise, return the predictions as a NumPy array
+    return np.array(pred)
+
+
 def train_one_epoch(model, criterion, optimizer, X, y):
     '''
     Define a function to train the model for one epoch called train_one_epoch.

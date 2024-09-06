@@ -15,7 +15,7 @@ async def classify_simple_and_hard_word():
     return {"simple_word": "simple", "hard_word": "hard"}
 
 
-@classify_router.get("train", tags=['classify'])
+@classify_router.get("/train", tags=['classify'])
 
 async def train():
     try:
