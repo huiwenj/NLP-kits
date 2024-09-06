@@ -5,6 +5,8 @@ import torch
 import torch.nn as nn
 import numpy as np
 import codecs
+from sklearn.metrics import accuracy_score
+
 
 all_letters = string.ascii_letters + " .,;'"
 n_letters = len(all_letters)
@@ -43,7 +45,137 @@ class RNN(nn.Module):
         # Initializes hidden state with zeros
         return torch.zeros(1, self.hidden_size)
 
+def predict(model, X, y = None, loss_func = None):
+    '''
+    Make predictions on the input data X using the given model.
+    Optionally calculate the average loss using true labels y and loss function loss_func.
 
+    Inputs:
+        model: trained model
+        X: a list of words
+        y: a list of categories (optional)
+        loss_func: a loss function (optional)
+    Returns:
+        predictions: as a NumPy array if y and loss_func are None, else the average loss.
+    '''
+    with torch.no_grad():
+        # Set the model to evaluation mode
+        model.eval()
+        # Initialize lists to store predictions and individual losses
+        pred = []
+        val_loss = []
+        # Loop over each sample in the input data X
+        for ind in range(X.shape[0]):
+            # Initialize hidden state
+            hidden = model.initHidden().to(device)
+            # Convert the current input sample to a tensor
+            val = line_to_tensor(X[ind])
+            # Loop over each element in the input tensor and get the model's output
+            for i in range(val.size()[0]):
+                output, hidden = model(val[i], hidden)
+            # Move the output tensor back to CPU and extract data (log probabilities)
+            log_probabilities = output.cpu().data
+            # Calculate the prediction by comparing the log probabilities
+            log_prob0, log_prob1 = log_probabilities[0]
+            pred.append(int(log_prob0 < log_prob1))
+            # If true labels and a loss function are provided, calculate the loss for the current sample
+            if y is not None and loss_func is not None:
+                category_tensor = torch.tensor([int(y[ind])]).to(device)
+                val_loss.append(loss_func(output, category_tensor).data.item())
+
+    # If true labels and a loss function were provided, return the average loss
+    if y is not None and loss_func is not None:
+        return sum(val_loss) / len(val_loss)
+
+    # Otherwise, return the predictions as a NumPy array
+    return np.array(pred)
+
+def run(train_data, val_data, hidden_size, n_epochs, learning_rate, loss_func, print_every, plot_every, model_name):
+    X, y = train_data
+    X_val, y_val = val_data
+    model = RNN(input_size=len(all_letters), hidden_size=hidden_size)
+    model = model.to(device)
+    current_loss = 0
+    train_losses = []
+    val_losses = []
+
+    for epoch in range(0, n_epochs):
+        output, loss, line, category = trainOneEpoch(model,
+                    criterion = loss_func,
+                    optimizer=torch.optim.SGD(model.parameters(), lr=learning_rate),
+                    X=X,
+                    y=y)
+        current_loss += loss
+
+        # print intermediate reports
+        if epoch % print_every == 0:
+            log_probabilities = output.cpu().data
+            log_prob0, log_prob1 = log_probabilities[0]
+            prediction = int(log_prob0 < log_prob1)
+            correct = 'correct' if prediction == category else 'incorrect (True:%s)' % category
+            print('Epoch %d (%d%%)  Loss: %.4f, Word: %s, Prediction: %s | %s' % (epoch, epoch / n_epochs * 100, loss, line, prediction, correct))
+
+        if epoch % plot_every == 0:
+            # Training Loss
+            train_losses.append(current_loss/plot_every)
+            current_loss= 0
+
+            # Validation Loss
+            val_losses.append(predict(model, X_val, y_val, loss_func))
+
+    torch.save(model.state_dict(), model_name)
+    return train_losses, val_losses
+
+
+def train_one_epoch(model, criterion, optimizer, X, y):
+    '''
+    Define a function to train the model for one epoch called train_one_epoch.
+
+    Do the following steps:
+
+    1. Reset any accumulated gradients in the model to zero.
+    2. Initialize a hidden state for the model using its initHidden method.
+    3. Randomly select a training pair (a category and a line, along with their tensor representations) using the random_training_pair function on X and y.
+    4. Loop over each tensor (character) in the line_tensor:
+    a. For each tensor, pass it and the current hidden state into the model to get the predicted output and the next hidden state.
+    5. Once the entire line_tensor is processed, compute the loss by comparing the model's final output to the true category_tensor using the provided criterion.
+    6. Propagate the error backward through the model to compute the gradients.
+    7. Update the model's parameters using the optimizer's step method.
+    8. Return the model's output, the computed loss as a single value, and the original line and category from the random training pair.
+
+    Inputs:
+        - model: the neural network model we want to train
+        - criterion: the loss function to calculate the training error
+        - optimizer: the optimization algorithm to adjust model parameters
+        - X: the input data
+        - y: the corresponding labels
+
+    Returns:
+        - output: the model's final output (prediction)
+        - output_loss: the computed loss as a single value
+        - line: the randomly choosen line from random_training_pair()
+        - category: the randomly choosen category from random_training_pair()
+    '''
+    # Zeroing the gradients to clear up the accumulated history
+    model.zero_grad()
+    # Initializing the hidden state for the model
+    hidden = model.initHidden().to(device)
+
+    category, line, category_tensor, line_tensor = random_training_pair(X, y)
+
+    for i in range(line_tensor.size()[0]):
+      output, hidden = model(line_tensor[i], hidden)
+
+
+    # Calculating the loss between the model's output and the actual target (category_tensor)
+    loss = criterion(output, category_tensor)
+    # Backward pass: compute the gradient of the loss with respect to model parameters
+    loss.backward()
+    # Updating the model parameters based on the calculated gradients
+    optimizer.step()
+    # Extracting the value of the loss as a Python number
+    output_loss = loss.data.item()
+    return output, output_loss, line, category
 
 
 
@@ -121,105 +253,6 @@ def letter_to_index(letter):
     '''
     return all_letters.find(letter)
 
-
-def predict(model, X, y = None, loss_func = None):
-    '''
-    Make predictions on the input data X using the given model.
-    Optionally calculate the average loss using true labels y and loss function loss_func.
-
-    Inputs:
-        model: trained model
-        X: a list of words
-        y: a list of categories (optional)
-        loss_func: a loss function (optional)
-    Returns:
-        predictions: as a NumPy array if y and loss_func are None, else the average loss.
-    '''
-    with torch.no_grad():
-        # Set the model to evaluation mode
-        model.eval()
-        # Initialize lists to store predictions and individual losses
-        pred = []
-        val_loss = []
-        # Loop over each sample in the input data X
-        for ind in range(X.shape[0]):
-            # Initialize hidden state
-            hidden = model.initHidden().to(device)
-            # Convert the current input sample to a tensor
-            val = line_to_tensor(X[ind])
-            # Loop over each element in the input tensor and get the model's output
-            for i in range(val.size()[0]):
-                output, hidden = model(val[i], hidden)
-            # Move the output tensor back to CPU and extract data (log probabilities)
-            log_probabilities = output.cpu().data
-            # Calculate the prediction by comparing the log probabilities
-            log_prob0, log_prob1 = log_probabilities[0]
-            pred.append(int(log_prob0 < log_prob1))
-            # If true labels and a loss function are provided, calculate the loss for the current sample
-            if y is not None and loss_func is not None:
-                category_tensor = torch.tensor([int(y[ind])]).to(device)
-                val_loss.append(loss_func(output, category_tensor).data.item())
-
-    # If true labels and a loss function were provided, return the average loss
-    if y is not None and loss_func is not None:
-        return sum(val_loss) / len(val_loss)
-
-    # Otherwise, return the predictions as a NumPy array
-    return np.array(pred)
-
-
-def train_one_epoch(model, criterion, optimizer, X, y):
-    '''
-    Define a function to train the model for one epoch called train_one_epoch.
-
-    Do the following steps:
-
-    1. Reset any accumulated gradients in the model to zero.
-    2. Initialize a hidden state for the model using its initHidden method.
-    3. Randomly select a training pair (a category and a line, along with their tensor representations) using the random_training_pair function on X and y.
-    4. Loop over each tensor (character) in the line_tensor:
-    a. For each tensor, pass it and the current hidden state into the model to get the predicted output and the next hidden state.
-    5. Once the entire line_tensor is processed, compute the loss by comparing the model's final output to the true category_tensor using the provided criterion.
-    6. Propagate the error backward through the model to compute the gradients.
-    7. Update the model's parameters using the optimizer's step method.
-    8. Return the model's output, the computed loss as a single value, and the original line and category from the random training pair.
-
-    Inputs:
-        - model: the neural network model we want to train
-        - criterion: the loss function to calculate the training error
-        - optimizer: the optimization algorithm to adjust model parameters
-        - X: the input data
-        - y: the corresponding labels
-
-    Returns:
-        - output: the model's final output (prediction)
-        - output_loss: the computed loss as a single value
-        - line: the randomly choosen line from random_training_pair()
-        - category: the randomly choosen category from random_training_pair()
-    '''
-    # Zeroing the gradients to clear up the accumulated history
-    model.zero_grad()
-    # Initializing the hidden state for the model
-    hidden = model.initHidden().to(device)
-
-    category, line, category_tensor, line_tensor = random_training_pair(X, y)
-
-    for i in range(line_tensor.size()[0]):
-      output, hidden = model(line_tensor[i], hidden)
-
-
-    # Calculating the loss between the model's output and the actual target (category_tensor)
-    loss = criterion(output, category_tensor)
-    # Backward pass: compute the gradient of the loss with respect to model parameters
-    loss.backward()
-    # Updating the model parameters based on the calculated gradients
-    optimizer.step()
-    # Extracting the value of the loss as a Python number
-    output_loss = loss.data.item()
-    return output, output_loss, line, category
-
-########## DO NOT CHANGE ##########
-## Loads in the words and labels of one of the datasets
 def load_labeled_file(data_file):
     words = []
     labels = []
@@ -250,3 +283,24 @@ def readData(baseDir, train=True):
         X = np.append(X, tempX)
         y = np.append(y, np.array([lang]*tempX.shape[0]))
     return X, y
+
+
+
+def calculateAccuracy(model, X, y):
+    '''
+    HINT: you can use accuracy_score function.
+
+    Pseudocode:
+    1. Calculate prediction of
+    X using predict()
+    2. Calculate accuracy using accuracy_score() fuction
+
+    Inputs:
+        model: trained model,
+        X: a list of words,
+        y: a list of class labels as integers
+    Returns:
+        accuracy score of the given model on the given input X and target y
+    '''
+    predictions = predict(model, X)
+    return accuracy_score(y, predictions)
