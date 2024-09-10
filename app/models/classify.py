@@ -1,16 +1,16 @@
-import string
+import codecs
+import os
 import random
+import string
 
+import numpy as np
 import torch
 import torch.nn as nn
-import numpy as np
-import codecs
 from sklearn.metrics import accuracy_score
-
 
 all_letters = string.ascii_letters + " .,;'"
 n_letters = len(all_letters)
-device =  torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 languages = ["af", "cn", "de", "fi", "fr", "in", "ir", "pk", "za"]
 
 
@@ -41,11 +41,12 @@ class RNN(nn.Module):
         # Return the final output and the new hidden state
         return output, hidden
 
-    def initHidden(self):
+    def init_hidden(self):
         # Initializes hidden state with zeros
         return torch.zeros(1, self.hidden_size)
 
-def predict(model, X, y = None, loss_func = None):
+
+def predict(model, X, y=None, loss_func=None):
     '''
     Make predictions on the input data X using the given model.
     Optionally calculate the average loss using true labels y and loss function loss_func.
@@ -67,7 +68,7 @@ def predict(model, X, y = None, loss_func = None):
         # Loop over each sample in the input data X
         for ind in range(X.shape[0]):
             # Initialize hidden state
-            hidden = model.initHidden().to(device)
+            hidden = model.init_hidden().to(device)
             # Convert the current input sample to a tensor
             val = line_to_tensor(X[ind])
             # Loop over each element in the input tensor and get the model's output
@@ -90,6 +91,7 @@ def predict(model, X, y = None, loss_func = None):
     # Otherwise, return the predictions as a NumPy array
     return np.array(pred)
 
+
 def run(train_data, val_data, hidden_size, n_epochs, learning_rate, loss_func, print_every, plot_every, model_name):
     X, y = train_data
     X_val, y_val = val_data
@@ -101,10 +103,10 @@ def run(train_data, val_data, hidden_size, n_epochs, learning_rate, loss_func, p
 
     for epoch in range(0, n_epochs):
         output, loss, line, category = train_one_epoch(model,
-                    criterion = loss_func,
-                    optimizer=torch.optim.SGD(model.parameters(), lr=learning_rate),
-                    X=X,
-                    y=y)
+                                                       criterion=loss_func,
+                                                       optimizer=torch.optim.SGD(model.parameters(), lr=learning_rate),
+                                                       X=X,
+                                                       y=y)
         current_loss += loss
 
         # print intermediate reports
@@ -113,22 +115,27 @@ def run(train_data, val_data, hidden_size, n_epochs, learning_rate, loss_func, p
             log_prob0, log_prob1 = log_probabilities[0]
             prediction = int(log_prob0 < log_prob1)
             correct = 'correct' if prediction == category else 'incorrect (True:%s)' % category
-            print('Epoch %d (%d%%)  Loss: %.4f, Word: %s, Prediction: %s | %s' % (epoch, epoch / n_epochs * 100, loss, line, prediction, correct))
+            print('Epoch %d (%d%%)  Loss: %.4f, Word: %s, Prediction: %s | %s' % (
+                epoch, epoch / n_epochs * 100, loss, line, prediction, correct))
 
         if epoch % plot_every == 0:
             # Training Loss
-            train_losses.append(current_loss/plot_every)
-            current_loss= 0
+            train_losses.append(current_loss / plot_every)
+            current_loss = 0
 
             # Validation Loss
             val_losses.append(predict(model, X_val, y_val, loss_func))
 
-    torch.save(model.state_dict(), model_name)
-    return train_losses, val_losses
+    save_dir = "./.models"
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+    model_path = os.path.join(save_dir, model_name)
+    torch.save(model.state_dict(), model_path)
+    return train_losses, val_losses, model_path
 
 
 def train_one_epoch(model, criterion, optimizer, X, y):
-    '''
+    """
     Define a function to train the model for one epoch called train_one_epoch.
 
     Do the following steps:
@@ -155,17 +162,16 @@ def train_one_epoch(model, criterion, optimizer, X, y):
         - output_loss: the computed loss as a single value
         - line: the randomly choosen line from random_training_pair()
         - category: the randomly choosen category from random_training_pair()
-    '''
+    """
     # Zeroing the gradients to clear up the accumulated history
     model.zero_grad()
     # Initializing the hidden state for the model
-    hidden = model.initHidden().to(device)
+    hidden = model.init_hidden().to(device)
 
     category, line, category_tensor, line_tensor = random_training_pair(X, y)
 
     for i in range(line_tensor.size()[0]):
-      output, hidden = model(line_tensor[i], hidden)
-
+        output, hidden = model(line_tensor[i], hidden)
 
     # Calculating the loss between the model's output and the actual target (category_tensor)
     loss = criterion(output, category_tensor)
@@ -178,9 +184,8 @@ def train_one_epoch(model, criterion, optimizer, X, y):
     return output, output_loss, line, category
 
 
-
-def random_training_pair(X, y, seed = None): # seed is required for penngrader only.
-    '''
+def random_training_pair(X, y, seed=None):  # seed is required for penngrader only.
+    """
     Pseudocode:
         1. Initialize a random generator with given seed.
         2. Generate a random index 'ind' between 0 and (number of rows in X) - 1.
@@ -202,15 +207,15 @@ def random_training_pair(X, y, seed = None): # seed is required for penngrader o
             category_tensor: the category as a tensor. Ex) category = 1 => category_tensor = tensor([1]),
                             Tip: make sure to send your tensor to GPU!
             line_tensor: line as a tensor. Tip: use line_to_tensor()!
-    '''
+    """
     if seed is not None:
         random.seed(seed)
 
-    ind = random.randint(0, len(X)-1)
+    ind = random.randint(0, len(X) - 1)
     category = y[ind]
     line = X[ind]
 
-    category_tensor = torch.tensor([category],dtype=torch.long).to(device)
+    category_tensor = torch.tensor([category], dtype=torch.long).to(device)
     line_tensor = line_to_tensor(line)
 
     return category, line, category_tensor, line_tensor
@@ -220,7 +225,7 @@ def random_training_pair(X, y, seed = None): # seed is required for penngrader o
 # input: a line of text
 # output:  a <line_length x 1 x n_letters> tensor
 def line_to_tensor(line):
-    '''
+    """
     Turn a line into a <line_length x 1 x n_letters>
     input: a line of text
     output:  a <line_length x 1 x n_letters> tensor
@@ -230,7 +235,7 @@ def line_to_tensor(line):
 
     Returns:
         a tensor
-    '''
+    """
     line_length = len(line)
     tensor = torch.zeros(line_length, 1, n_letters)
 
@@ -253,6 +258,7 @@ def letter_to_index(letter):
     '''
     return all_letters.find(letter)
 
+
 def load_labeled_file(data_file):
     words = []
     labels = []
@@ -268,22 +274,23 @@ def load_labeled_file(data_file):
     y = np.array(labels)
     return X, y
 
-def getWords(baseDir, lang, train = True):
+
+def getWords(baseDir, lang, train=True):
     suff = "train/" if train else "val/"
     arr = []
-    with codecs.open(baseDir+suff+lang+".txt", "r",encoding='utf-8', errors='ignore') as fp:
+    with codecs.open(baseDir + suff + lang + ".txt", "r", encoding='utf-8', errors='ignore') as fp:
         for line in fp:
             arr.append(line.rstrip("\n"))
     return np.array(arr)
+
 
 def readData(baseDir, train=True):
     X, y = np.array([]), np.array([])
     for lang in languages:
         tempX = getWords(baseDir, lang, train)
         X = np.append(X, tempX)
-        y = np.append(y, np.array([lang]*tempX.shape[0]))
+        y = np.append(y, np.array([lang] * tempX.shape[0]))
     return X, y
-
 
 
 def calculateAccuracy(model, X, y):
