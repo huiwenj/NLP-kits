@@ -1,6 +1,6 @@
 from fastapi import APIRouter
-from fastapi.responses import JSONResponse
 
+from app.models.response import R
 from app.service.classify import ClassifyService
 
 classify_router = APIRouter()
@@ -11,9 +11,9 @@ service = ClassifyService()
 async def train():
     try:
         result = service.train()
-        return JSONResponse(status_code=200, content={"message": "Training is done!", "data": result})
+        return R.success(result)
     except Exception as e:
-        return JSONResponse(status_code=500, content={"message": f"Something went wrong!, error: {str(e)}"})
+        return R.error(str(e))
 
 
 @classify_router.get("/predict", tags=['classify'],
