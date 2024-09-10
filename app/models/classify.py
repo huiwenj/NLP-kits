@@ -14,6 +14,181 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 languages = ["af", "cn", "de", "fi", "fr", "in", "ir", "pk", "za"]
 
 
+def trainOneEpoch(model, criterion, optimizer, X, y):
+    """
+    Define a function to train the model for one epoch called trainOneEpoch.
+
+    Do the following steps:
+
+    1. Reset any accumulated gradients in the model to zero.
+    2. Initialize a hidden state for the model using its initHidden method.
+    3. Randomly select a training pair (a category and a line, along with their tensor representations) using the random_training_pair function on X and y.
+    4. Loop over each tensor (character) in the line_tensor:
+    a. For each tensor, pass it and the current hidden state into the model to get the predicted output and the next hidden state.
+    5. Once the entire line_tensor is processed, compute the loss by comparing the model's final output to the true category_tensor using the provided criterion.
+    6. Propagate the error backward through the model to compute the gradients.
+    7. Update the model's parameters using the optimizer's step method.
+    8. Return the model's output, the computed loss as a single value, and the original line and category from the random training pair.
+
+    Inputs:
+        - model: the neural network model we want to train
+        - criterion: the loss function to calculate the training error
+        - optimizer: the optimization algorithm to adjust model parameters
+        - X: the input data
+        - y: the corresponding labels
+
+    Returns:
+        - output: the model's final output (prediction)
+        - output_loss: the computed loss as a single value
+        - line: the randomly choosen line from random_training_pair()
+        - category: the randomly choosen category from random_training_pair()
+    """
+    # Zeroing the gradients to clear up the accumulated history
+    model.zero_grad()
+    # Initializing the hidden state for the model
+    hidden = model.init_hidden().to(device)
+
+    category, line, category_tensor, line_tensor = random_training_pair(X, y)
+
+    for i in range(line_tensor.size()[0]):
+        output, hidden = model(line_tensor[i], hidden)
+
+    # Calculating the loss between the model's output and the actual target (category_tensor)
+    loss = criterion(output, category_tensor)
+    # Backward pass: compute the gradient of the loss with respect to model parameters
+    loss.backward()
+    # Updating the model parameters based on the calculated gradients
+    optimizer.step()
+    # Extracting the value of the loss as a Python number
+    output_loss = loss.data.item()
+    return output, output_loss, line, category
+
+
+def predict_multi(model, X, y=None, loss_func=None):
+    with torch.no_grad():
+        model.eval()
+        pred = []
+        val_loss = []
+        for ind in range(X.shape[0]):
+            hidden = model.init_hidden().to(device)
+            val = line_to_tensor(X[ind])
+            for i in range(val.size()[0]):
+                output, hidden = model(val[i], hidden)
+
+            # TODO: fill this part to get prediction from output
+            # pseudocode:
+            #   1. Get the index of the maximum value of the output tensor
+            #   2. Append it to the pred list
+            _, predicted = torch.max(output, 1)
+            pred.append(predicted.item())
+
+            if y is not None and loss_func is not None:
+                category_tensor = torch.tensor([int(y[ind])]).to(device)
+                val_loss.append(loss_func(output, category_tensor).data.item())
+
+    if y is not None and loss_func is not None:
+        return sum(val_loss) / len(val_loss)
+    return np.array(pred)
+
+
+def calculateAccuracy_multi(model, X, y):
+    preds = predict_multi(model, X)
+    return accuracy_score(preds, y)
+
+
+def run_multi(
+    train_data,
+    val_data,
+    hidden_size,
+    n_epochs,
+    learning_rate,
+    loss_func,
+    print_every,
+    plot_every,
+    model_name,
+):
+    X, y = train_data
+    X_val, y_val = val_data
+    model = RNN_multi(
+        input_size=len(all_letters), hidden_size=hidden_size, output_size=len(languages)
+    )
+    model = model.to(device)
+    current_loss = 0
+    train_losses = []
+    val_losses = []
+
+    for epoch in range(0, n_epochs):
+        output, loss, line, category = trainOneEpoch(
+            model,
+            criterion=loss_func,
+            optimizer=torch.optim.SGD(model.parameters(), lr=learning_rate),
+            X=X,
+            y=y,
+        )
+        current_loss += loss
+
+        if epoch % print_every == 0:
+            # TODO: design your own report to print (freestyle!)
+            # What you can do:
+            #   1. make prediction
+            #   2. compare with gold label to see right or wrong
+            #   3. report the number of epoch, the percentage of completion, loss,...
+            log_probabilities = output.cpu().data
+            prediction = torch.argmax(log_probabilities).item()
+            correct = (
+                "correct" if prediction == category else f"incorrect (True:{category})"
+            )
+            print(
+                f"Epoch {epoch} ({epoch / n_epochs * 100:.2f}%)  Loss: {loss:.4f}, Word: {line}, Prediction: {prediction} | {correct}"
+            )
+
+        if epoch % plot_every == 0:
+            train_losses.append(current_loss / plot_every)
+            current_loss = 0
+
+            # Validation Loss
+            val_loss = predict_multi(model, X_val, y_val, loss_func)
+            val_losses.append(val_loss)
+
+    save_dir = "./.models"
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+    model_path = os.path.join(save_dir, model_name)
+
+    torch.save(model.state_dict(), model_path)
+    return train_losses, val_losses, model_path
+
+
+class RNN_multi(nn.Module):
+    def __init__(self, input_size, hidden_size, output_size):
+        """
+        The function should accept various range of output size.
+
+        Inputs:
+            self: points to initialized object
+            input_size: dimensions of input tensor
+            hidden_size: dimensions of the hidden layer
+            output_size: dimensions of the expected output tensor
+        Returns:
+            nothing, it initializes the RNN object
+        """
+        super(RNN_multi, self).__init__()
+        self.hidden_size = hidden_size
+        self.i2h = nn.Linear(input_size + hidden_size, hidden_size)
+        self.h2o = nn.Linear(hidden_size, output_size)
+        self.softmax = nn.LogSoftmax(dim=1)
+
+    def forward(self, input, hidden):
+        combined = torch.cat((input, hidden), 1)
+        hidden = self.i2h(combined)
+        output = self.h2o(hidden)
+        output = self.softmax(output)
+        return output, hidden
+
+    def init_hidden(self):
+        return torch.zeros(1, self.hidden_size)
+
+
 class RNN(nn.Module):
     def __init__(self, input_size, hidden_size):
         super(RNN, self).__init__()  # Calling the parent class (nn.Module) initializer
@@ -47,7 +222,7 @@ class RNN(nn.Module):
 
 
 def predict(model, X, y=None, loss_func=None):
-    '''
+    """
     Make predictions on the input data X using the given model.
     Optionally calculate the average loss using true labels y and loss function loss_func.
 
@@ -58,7 +233,7 @@ def predict(model, X, y=None, loss_func=None):
         loss_func: a loss function (optional)
     Returns:
         predictions: as a NumPy array if y and loss_func are None, else the average loss.
-    '''
+    """
     with torch.no_grad():
         # Set the model to evaluation mode
         model.eval()
@@ -92,7 +267,17 @@ def predict(model, X, y=None, loss_func=None):
     return np.array(pred)
 
 
-def run(train_data, val_data, hidden_size, n_epochs, learning_rate, loss_func, print_every, plot_every, model_name):
+def run(
+    train_data,
+    val_data,
+    hidden_size,
+    n_epochs,
+    learning_rate,
+    loss_func,
+    print_every,
+    plot_every,
+    model_name,
+):
     X, y = train_data
     X_val, y_val = val_data
     model = RNN(input_size=len(all_letters), hidden_size=hidden_size)
@@ -102,11 +287,13 @@ def run(train_data, val_data, hidden_size, n_epochs, learning_rate, loss_func, p
     val_losses = []
 
     for epoch in range(0, n_epochs):
-        output, loss, line, category = train_one_epoch(model,
-                                                       criterion=loss_func,
-                                                       optimizer=torch.optim.SGD(model.parameters(), lr=learning_rate),
-                                                       X=X,
-                                                       y=y)
+        output, loss, line, category = train_one_epoch(
+            model,
+            criterion=loss_func,
+            optimizer=torch.optim.SGD(model.parameters(), lr=learning_rate),
+            X=X,
+            y=y,
+        )
         current_loss += loss
 
         # print intermediate reports
@@ -114,9 +301,15 @@ def run(train_data, val_data, hidden_size, n_epochs, learning_rate, loss_func, p
             log_probabilities = output.cpu().data
             log_prob0, log_prob1 = log_probabilities[0]
             prediction = int(log_prob0 < log_prob1)
-            correct = 'correct' if prediction == category else 'incorrect (True:%s)' % category
-            print('Epoch %d (%d%%)  Loss: %.4f, Word: %s, Prediction: %s | %s' % (
-                epoch, epoch / n_epochs * 100, loss, line, prediction, correct))
+            correct = (
+                "correct"
+                if prediction == category
+                else "incorrect (True:%s)" % category
+            )
+            print(
+                "Epoch %d (%d%%)  Loss: %.4f, Word: %s, Prediction: %s | %s"
+                % (epoch, epoch / n_epochs * 100, loss, line, prediction, correct)
+            )
 
         if epoch % plot_every == 0:
             # Training Loss
@@ -245,7 +438,7 @@ def line_to_tensor(line):
 
 
 def letter_to_index(letter):
-    '''
+    """
     Find letter index from all_letters, e.g. "a" = 0
     hint: use .find() function
         This could be a one line function!
@@ -255,14 +448,14 @@ def letter_to_index(letter):
 
     Returns:
         index integer. Ex) 0, 17,
-    '''
+    """
     return all_letters.find(letter)
 
 
 def load_labeled_file(data_file):
     words = []
     labels = []
-    with open(data_file, 'rt', encoding="utf8") as f:
+    with open(data_file, "rt", encoding="utf8") as f:
         i = 0
         for line in f:
             if i > 0:
@@ -278,13 +471,15 @@ def load_labeled_file(data_file):
 def getWords(baseDir, lang, train=True):
     suff = "train/" if train else "val/"
     arr = []
-    with codecs.open(baseDir + suff + lang + ".txt", "r", encoding='utf-8', errors='ignore') as fp:
+    with codecs.open(
+        baseDir + suff + lang + ".txt", "r", encoding="utf-8", errors="ignore"
+    ) as fp:
         for line in fp:
             arr.append(line.rstrip("\n"))
     return np.array(arr)
 
 
-def readData(baseDir, train=True):
+def read_data(baseDir, train=True):
     X, y = np.array([]), np.array([])
     for lang in languages:
         tempX = getWords(baseDir, lang, train)
@@ -294,7 +489,7 @@ def readData(baseDir, train=True):
 
 
 def calculateAccuracy(model, X, y):
-    '''
+    """
     HINT: you can use accuracy_score function.
 
     Pseudocode:
@@ -308,6 +503,17 @@ def calculateAccuracy(model, X, y):
         y: a list of class labels as integers
     Returns:
         accuracy score of the given model on the given input X and target y
-    '''
+    """
     predictions = predict(model, X)
     return accuracy_score(y, predictions)
+
+
+def replace_nan_with_none(data):
+    if isinstance(data, dict):
+        return {k: replace_nan_with_none(v) for k, v in data.items()}
+    elif isinstance(data, list):
+        return [replace_nan_with_none(i) for i in data]
+    elif isinstance(data, float) and np.isnan(data):
+        return None
+    else:
+        return data

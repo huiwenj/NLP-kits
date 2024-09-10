@@ -1,5 +1,6 @@
 <script setup>
 import SimpleAndHardWord from "@/pages/classify/components/SimpleAndHardWord.vue";
+import City from "@/pages/classify/components/City.vue";
 
 const text = ref("1");
 </script>
@@ -11,6 +12,7 @@ const text = ref("1");
   </v-btn-toggle>
 
   <simple-and-hard-word v-if="text === '1'" />
+  <city v-else />
 </template>
 
 <style scoped></style>

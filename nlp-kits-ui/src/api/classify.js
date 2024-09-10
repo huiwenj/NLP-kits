@@ -1,9 +1,17 @@
 import http from "@/util/http";
 
-export const train = () => {
-  return http.get("/classify/train");
+export const wordTrain = () => {
+  return http.get("/classify/word/train");
 };
 
-export const predict = (word) => {
-  return http.get("/classify/predict", { params: { word } });
+export const wordPredict = (word) => {
+  return http.get("/classify/word/predict", { params: { word } });
+};
+
+export const cityTrain = () => {
+  return http.get("/classify/city/train");
+};
+
+export const cityPredict = (city) => {
+  return http.get("/classify/city/predict", { params: { city } });
 };

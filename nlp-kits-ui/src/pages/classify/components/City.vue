@@ -1,6 +1,6 @@
 <script setup>
 import VChart from "vue-echarts";
-import { wordPredict, wordTrain } from "@/api/classify";
+import { cityPredict, cityTrain } from "@/api/classify";
 import { use } from "echarts/core";
 import {
   GridComponent,
@@ -32,7 +32,7 @@ watchEffect(() => {
 const handleToTrain = async () => {
   isTrain.value = true;
   try {
-    const { data } = await wordTrain();
+    const { data } = await cityTrain();
     const { train_losses, val_losses } = data;
     trainLosses.value = train_losses;
     valLosses.value = val_losses;
@@ -45,7 +45,7 @@ const handleToTrain = async () => {
 const handlePredict = async () => {
   isTrain.value = true;
   try {
-    const { data } = await wordPredict(text.value);
+    const { data } = await cityPredict(text.value);
     predictVal.value = data;
   } finally {
     isTrain.value = false;
@@ -127,8 +127,7 @@ const options = computed(() => {
   <content-card>
     <h2 class="select-none font-weight-medium">What is this model?</h2>
     <p class="text-indigo mt-2">
-      <strong>Text classifier</strong>: distinguish between words that are
-      simple and words that are complex by using RNN
+      <strong>Country classifier</strong>: Classify city names to country
     </p>
 
     <v-btn
@@ -158,42 +157,37 @@ const options = computed(() => {
     </v-expansion-panels>
   </content-card>
 
-  <content-card class="mt-3">
-    <h2 class="select-none font-weight-medium">Start to classifier</h2>
-    <p class="text-indigo mt-2">
-      Input a word, and the model will tell you whether it is a simple word or a
-      hard word
-    </p>
+  <!--<content-card class="mt-3">-->
+  <!--  <h2 class="select-none font-weight-medium">Start to classifier</h2>-->
+  <!--  <p class="text-indigo mt-2">-->
+  <!--    Input a word, and the model will tell you whether it is a simple word or a-->
+  <!--    hard word-->
+  <!--  </p>-->
 
-    <v-text-field
-      class="mt-3"
-      color="#8381C5"
-      variant="outlined"
-      max-width="400"
-      clearable
-      clear-icon="mdi-close"
-      label="Word"
-      placeholder="Input a word"
-      outlined
-      :disabled="isTrain"
-      v-model="text"
-    ></v-text-field>
+  <!--  <v-text-field-->
+  <!--    class="mt-3"-->
+  <!--    color="#8381C5"-->
+  <!--    variant="outlined"-->
+  <!--    max-width="400"-->
+  <!--    clearable-->
+  <!--    clear-icon="mdi-close"-->
+  <!--    label="Word"-->
+  <!--    placeholder="Input a word"-->
+  <!--    outlined-->
+  <!--    :disabled="isTrain"-->
+  <!--    v-model="text"-->
+  <!--  ></v-text-field>-->
 
-    <v-btn
-      :loading="isTrain"
-      variant="tonal"
-      color="purple"
-      @click="handlePredict"
-      :disabled="text === null || text === ''"
-    >
-      Predict
-    </v-btn>
-
-    <p class="mt-2" v-if="predictVal !== -1">
-      Word <strong>{{ text }}</strong> is: a
-      <strong>{{ predictVal === 0 ? "simple" : "hard" }}</strong> word
-    </p>
-  </content-card>
+  <!--  <v-btn-->
+  <!--    :loading="isTrain"-->
+  <!--    variant="tonal"-->
+  <!--    color="purple"-->
+  <!--    @click="handlePredict"-->
+  <!--    :disabled="text === null || text === ''"-->
+  <!--  >-->
+  <!--    Predict-->
+  <!--  </v-btn>-->
+  <!--</content-card>-->
 </template>
 
 <style scoped></style>
