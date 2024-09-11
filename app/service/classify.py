@@ -5,7 +5,7 @@ import torch
 from torch import nn
 
 from app.models.classify import all_letters, RNN, device, load_labeled_file, run, calculateAccuracy, line_to_tensor, \
-    read_data, run_multi, languages, RNN_multi, calculateAccuracy_multi, replace_nan_with_none
+    read_data, run_multi, languages, RnnMulti, calculate_accuracy_multi, replace_nan_with_none
 from app.models.response import R
 
 
@@ -51,12 +51,13 @@ class WordClassifyService:
         try:
             model = RNN(input_size=len(all_letters), hidden_size=50).to(device)
             model.load_state_dict(torch.load("./.models/word_RNN"))
+            model.eval()
         except Exception as e:
             return R.error(f"Error when loading model: {str(e)}")
 
         try:
             with torch.no_grad():
-                model.eval()
+
                 line_tensor = line_to_tensor(word)
                 hidden = model.init_hidden().to(device)
 
@@ -88,21 +89,21 @@ class CityClassifyService:
 
         city_all_losses, city_val_losses, model_path = run_multi(train_data=city_train_data,
                                                      val_data=city_val_data,
-                                                     hidden_size=10,
-                                                     n_epochs=50000,
-                                                     learning_rate=0.01,
+                                                     hidden_size=100,
+                                                     n_epochs=5000,
+                                                     learning_rate=0.002,
                                                      loss_func=nn.NLLLoss(),
-                                                     print_every=5000,
-                                                     plot_every=250,
+                                                     print_every=500,
+                                                     plot_every=100,
                                                      model_name="city_RNN"
                                                      )
 
-        test_model_multi = RNN_multi(input_size=len(all_letters), hidden_size=10, output_size=len(languages)).to(device)
+        test_model_multi = RnnMulti(input_size=len(all_letters), hidden_size=100, output_size=len(languages)).to(device)
         test_model_multi.load_state_dict(torch.load(model_path))
 
         test_model_multi.eval()
 
-        val_acc = calculateAccuracy_multi(test_model_multi, city_val_data_raw[0], y_val_city)
+        val_acc = calculate_accuracy_multi(test_model_multi, city_val_data_raw[0], y_val_city)
 
         return {
             "train_losses": replace_nan_with_none(city_all_losses),
@@ -116,9 +117,10 @@ class CityClassifyService:
 
 
         try:
-            model = RNN_multi(input_size=len(all_letters), hidden_size=10, output_size=len(languages)).to(
+            model = RnnMulti(input_size=len(all_letters), hidden_size=100, output_size=len(languages)).to(
                 device)
             model.load_state_dict(torch.load("./.models/city_RNN"))
+
         except Exception as e:
             return R.error(f"Error when loading model: {str(e)}")
 
@@ -131,11 +133,20 @@ class CityClassifyService:
                 for i in range(line_tensor.size()[0]):
                     output, hidden = model(line_tensor[i], hidden)
 
-                topv, topi = output.topk(1)
-                country_index = topi[0].item()
-                return R.success(country_index)
+                log_probabilities = output.cpu().data
+                prediction = torch.argmax(log_probabilities).item()
+                return R.success(languages[prediction])
         except Exception as e:
             return R.error(f"Error when predicting: {str(e)}")
+
+    def list_city(self):
+        try:
+            with open("data/classify/city/cities_test.txt") as f:
+                countries = f.readlines()
+                countries = [country.strip() for country in countries]
+                return R.success(countries)
+        except Exception as e:
+            return R.error(f"Error when getting city list, {str(e)}")
 
 
 

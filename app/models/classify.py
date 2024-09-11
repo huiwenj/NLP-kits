@@ -14,6 +14,37 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 languages = ["af", "cn", "de", "fi", "fr", "in", "ir", "pk", "za"]
 
 
+# model for city classification
+class RnnMulti(nn.Module):
+    def __init__(self, input_size, hidden_size, output_size):
+        """
+        The function should accept various range of output size.
+
+        Inputs:
+            self: points to initialized object
+            input_size: dimensions of input tensor
+            hidden_size: dimensions of the hidden layer
+            output_size: dimensions of the expected output tensor
+        Returns:
+            nothing, it initializes the RNN object
+        """
+        super(RnnMulti, self).__init__()
+        self.hidden_size = hidden_size
+        self.i2h = nn.Linear(input_size + hidden_size, hidden_size)
+        self.h2o = nn.Linear(hidden_size, output_size)
+        self.softmax = nn.LogSoftmax(dim=1)
+
+    def forward(self, input, hidden):
+        combined = torch.cat((input, hidden), 1)
+        hidden = self.i2h(combined)
+        output = self.h2o(hidden)
+        output = self.softmax(output)
+        return output, hidden
+
+    def init_hidden(self):
+        return torch.zeros(1, self.hidden_size)
+
+
 def trainOneEpoch(model, criterion, optimizer, X, y):
     """
     Define a function to train the model for one epoch called trainOneEpoch.
@@ -91,7 +122,7 @@ def predict_multi(model, X, y=None, loss_func=None):
     return np.array(pred)
 
 
-def calculateAccuracy_multi(model, X, y):
+def calculate_accuracy_multi(model, X, y):
     preds = predict_multi(model, X)
     return accuracy_score(preds, y)
 
@@ -109,7 +140,7 @@ def run_multi(
 ):
     X, y = train_data
     X_val, y_val = val_data
-    model = RNN_multi(
+    model = RnnMulti(
         input_size=len(all_letters), hidden_size=hidden_size, output_size=len(languages)
     )
     model = model.to(device)
@@ -159,36 +190,7 @@ def run_multi(
     return train_losses, val_losses, model_path
 
 
-class RNN_multi(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size):
-        """
-        The function should accept various range of output size.
-
-        Inputs:
-            self: points to initialized object
-            input_size: dimensions of input tensor
-            hidden_size: dimensions of the hidden layer
-            output_size: dimensions of the expected output tensor
-        Returns:
-            nothing, it initializes the RNN object
-        """
-        super(RNN_multi, self).__init__()
-        self.hidden_size = hidden_size
-        self.i2h = nn.Linear(input_size + hidden_size, hidden_size)
-        self.h2o = nn.Linear(hidden_size, output_size)
-        self.softmax = nn.LogSoftmax(dim=1)
-
-    def forward(self, input, hidden):
-        combined = torch.cat((input, hidden), 1)
-        hidden = self.i2h(combined)
-        output = self.h2o(hidden)
-        output = self.softmax(output)
-        return output, hidden
-
-    def init_hidden(self):
-        return torch.zeros(1, self.hidden_size)
-
-
+# model for word classification
 class RNN(nn.Module):
     def __init__(self, input_size, hidden_size):
         super(RNN, self).__init__()  # Calling the parent class (nn.Module) initializer

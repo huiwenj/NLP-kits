@@ -38,3 +38,7 @@ def train_city():
 def predict_city(city: str):
     return city_service.predict(city)
 
+
+@classify_router.get("/city/list", tags=['classify'])
+def list_city():
+    return city_service.list_city()
