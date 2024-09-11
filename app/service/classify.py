@@ -63,9 +63,11 @@ class WordClassifyService:
                 for i in range(line_tensor.size()[0]):
                     output, hidden = model(line_tensor[i], hidden)
 
-                topv, topi = output.topk(1)
-                category_index = topi[0].item()
-                return R.success(category_index)
+                log_probabilities = output.cpu().data
+                log_prob0, log_prob1 = log_probabilities[0]
+
+                prediction = int(log_prob0 < log_prob1)
+                return R.success(prediction)
         except Exception as e:
             return R.error(f"Error when predicting: {str(e)}")
 

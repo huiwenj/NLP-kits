@@ -11,8 +11,8 @@ const text = ref("1");
     <v-btn value="2">City names 2 country</v-btn>
   </v-btn-toggle>
 
-  <simple-and-hard-word v-if="text === '1'" />
-  <city v-else />
+  <simple-and-hard-word v-show="text === '1'" />
+  <city v-show="text === '2'" />
 </template>
 
 <style scoped></style>
