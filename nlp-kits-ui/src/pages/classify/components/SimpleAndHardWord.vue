@@ -24,6 +24,8 @@ const select = ref([0]);
 const trainLosses = ref([]);
 const valLosses = ref([]);
 
+const emits = defineEmits(["update"]);
+
 watchEffect(() => {
   const val = text.value;
   predictVal.value = -1;
@@ -31,6 +33,7 @@ watchEffect(() => {
 
 const handleToTrain = async () => {
   isTrain.value = true;
+  emits("update", { loading: isTrain.value });
   try {
     const { data } = await wordTrain();
     const { train_losses, val_losses } = data;
@@ -39,16 +42,19 @@ const handleToTrain = async () => {
     showSuccess.value = true;
   } finally {
     isTrain.value = false;
+    emits("update", { loading: isTrain.value });
   }
 };
 
 const handlePredict = async () => {
   isTrain.value = true;
+  emits("update", { loading: isTrain.value });
   try {
     const { data } = await wordPredict(text.value);
     predictVal.value = data;
   } finally {
     isTrain.value = false;
+    emits("update", { loading: isTrain.value });
   }
 };
 
@@ -82,8 +88,7 @@ const options = computed(() => {
     },
     yAxis: {
       type: "value",
-      name: "Percentage",
-      max: 1,
+      name: "Loss",
     },
     tooltip: {
       trigger: "axis",
@@ -124,7 +129,7 @@ const options = computed(() => {
 </script>
 
 <template>
-  <content-card>
+  <content-card v-bind="$attrs">
     <h2 class="select-none font-weight-medium">What is this model?</h2>
     <p class="text-indigo mt-2">
       <strong>Text classifier</strong>: distinguish between words that are
@@ -138,7 +143,7 @@ const options = computed(() => {
       color="purple"
       @click="handleToTrain"
     >
-      Train is Now
+      Train
     </v-btn>
 
     <v-expansion-panels v-model="select" class="mt-3" v-if="showSuccess">

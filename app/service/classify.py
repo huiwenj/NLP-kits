@@ -18,7 +18,7 @@ class WordClassifyService:
         word_train_losses, word_val_losses, model_path = run(train_data=word_train_data,
                                                              val_data=word_val_data,
                                                              hidden_size=50,
-                                                             n_epochs=50000,
+                                                             n_epochs=10000,
                                                              learning_rate=0.005,
                                                              loss_func=nn.NLLLoss(),
                                                              print_every=5000,

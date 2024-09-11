@@ -15,3 +15,7 @@ export const cityTrain = () => {
 export const cityPredict = (city) => {
   return http.get("/classify/city/predict", { params: { city } });
 };
+
+export const cityList = () => {
+  return http.get("/classify/city/list");
+};

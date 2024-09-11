@@ -1,7 +1,8 @@
 <template>
-  <v-app>
-    <v-main>
+  <v-theme-provider theme="light" with-background>
+    <v-app>
       <router-view />
-    </v-main>
-  </v-app>
+    </v-app>
+  </v-theme-provider>
 </template>
+<script setup lang="ts"></script>
