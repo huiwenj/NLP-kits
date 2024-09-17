@@ -22,6 +22,10 @@ const router = createRouter({
         path: "/classify",
         component: () => import("@/pages/classify/index.vue"),
       },
+      {
+        path: "/emotional",
+        component: () => import("@/pages/emotional/index.vue"),
+      },
     ]),
   ],
 });

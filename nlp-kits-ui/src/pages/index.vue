@@ -38,6 +38,14 @@ onMounted(() => {
               router="/classify"
             />
           </v-col>
+
+          <v-col cols="6">
+            <router-card
+              title="Emotional Analysis"
+              subtitle="Emotional Analysis"
+              router="/emotional"
+            />
+          </v-col>
         </v-row>
       </v-responsive>
     </v-container>
