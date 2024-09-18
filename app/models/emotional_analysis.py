@@ -38,8 +38,7 @@ def load_data():
 
     dataset = load_dataset("yelp_review_full")
 
-    # Randomly select 1000 examples from the train and test data and tokenize - do not change!
-    # (Note: We are subsampling our data just so that training doesn't take too long)
+    # Randomly select 1000 examples from the train and test data and tokenize
     train_data = dataset["train"].shuffle(seed=42).select(range(1000)).map(tokenize_function)
     eval_data = dataset["test"].shuffle(seed=42).select(range(1000)).map(tokenize_function)
 
@@ -47,7 +46,7 @@ def load_data():
 
 
 def train(train_data, eval_data):
-    # Step 3: Specify the TrainingArguments and Initialize the Trainer (Do not change!)
+    # Step 3: Specify the TrainingArguments and Initialize the Trainer
     training_args = TrainingArguments(
         evaluation_strategy="epoch",
         logging_strategy="epoch",
