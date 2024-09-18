@@ -13,7 +13,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 device_id = 0 if str(device) == 'cuda' else -1
 
 
-# Step 1: Tokenize and Process the dataset 把向量tokenize
+# Step 1: Tokenize and Process the dataset tokenize
 tokenizer = AutoTokenizer.from_pretrained("bert-base-cased")
 
 def tokenize_function(row):
